@@ -9,13 +9,12 @@
 #include <assert.h>
 #include "./bthread.h"
 
-#define LOG(str) write(1, str, strlen(str))
+#define ITERS 800000
 
-void print(char *arg) {
-    // both parent and child run this
+void print(char *greeting, char *name) {
     char buf[100];
-    snprintf(&buf[0], 100, "Hello from pid %d, precious=%s\n", getpid(),
-             arg);
+    snprintf(&buf[0], 100, "%s from pid %d, name=%s\n", greeting, getpid(),
+             name);
     if (write(1, buf, strlen(buf)) < 0) {
       perror("write");
     }
@@ -23,19 +22,22 @@ void print(char *arg) {
 
 bthread_mutex mtx;
 int protect_me = 12;
+int sect_count = 0;
 
 int thread_fun(void *arg) {
-    for (int i = 0; i < 400000; i++) {
-        if (i % (400000 / 2) == 0) {
-            printf("yay, %s\n", (char *)arg);
-        }
+    print("hello", (char *)arg);
+    for (int i = 0; i < ITERS; i++) {
+
         bthread_mutex_lock(&mtx);
+        sect_count++;
         assert(protect_me == 12);
         protect_me++;
+        assert(protect_me == 13);
         protect_me--;
+        assert(protect_me == 12);
         bthread_mutex_unlock(&mtx);
     }
-    print((char *)arg);
+    print("goodbye", (char *)arg);
     exit(0);
 }
 
@@ -52,9 +54,11 @@ int main(int argc, char *argv[]) {
         int s = bthread_create(&thread_fun, argv[i + 1]);
         if (s == -1) {
             fprintf(stderr, "thread creation failed\n");
+            bthread_collect();
             exit(1);
         }
     }
     
     bthread_collect();
+    assert(sect_count == nthreads * ITERS);
 }

@@ -3,6 +3,7 @@
 
 #include <sys/mman.h>
 #include <sched.h>
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -12,7 +13,7 @@
 #include "./bthread.h"
 
 #define BTHREAD_STACK_SIZE (60 * 1024)
-#define BTHREAD_MAX_THREADS 16
+#define BTHREAD_MAX_THREADS 100
 
 static int thread_ids[BTHREAD_MAX_THREADS];
 
@@ -20,6 +21,11 @@ static int next_tid = 0;
 
 int bthread_create(int (*thread_func)(void *), void *thread_arg)
 {
+    if (next_tid == BTHREAD_MAX_THREADS) {
+        fprintf(stderr, "you cannot create any more threads, the limit is %d\n", BTHREAD_MAX_THREADS);
+        return -1;
+    }
+
     char *const stack = mmap(
         /*
             Desired location of the memory region. If NULL, the kernel will
@@ -119,7 +125,6 @@ void bthread_collect()
         fprintf(stderr, "... thread %i exited with value %d\n", i, WEXITSTATUS(status));
     }
     fprintf(stderr, "... bye\n");
-    exit(0);
 }
 
 
@@ -133,26 +138,26 @@ void bthread_mutex_lock(bthread_mutex *mtx)
         unlocked.
     */
     while (1) {
-        if (mtx->locked == 0) {
-            // This looks good, but we need to 
-            // verify with an atomic instruction
-            int existing_value;
-            asm volatile (
-                "movl $0, %%eax;"
-                "movl $1, %%edx;"
-                "lock cmpxchg %%edx, %0;"
-                "mov %%eax, %1;"
-                : "=m" (mtx->locked), "=r" (existing_value)
-                :
-                : "eax"
-            );
+        if (mtx->locked != 0) { continue; }
 
-            if (existing_value == 0) {
-                // we got the lock
-                return;
-            }
-        } else {
-            // mutex was locked, poll again.
+        // This looks good, but we need to 
+        // verify with an atomic instruction
+        int existing_value = -1;
+        asm volatile (
+            "movl $0, %%eax;"
+            "movl $1, %%edx;"
+            "lock cmpxchg %%edx, %0;"
+            "mov %%eax, %1;"
+            : "=m" (mtx->locked), "=r" (existing_value)
+            :
+            : "eax"
+        );
+        
+        assert(existing_value == 0 || existing_value == 1);
+
+        if (existing_value == 0) {
+            // we got the lock
+            return;
         }
     }
 }

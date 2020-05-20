@@ -2,80 +2,74 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#include <string.h>
 #include <assert.h>
-#include <time.h>
 #include "./bthread.h"
 
-#define LOG(str) write(1, str, strlen(str))
 
-void print(char *arg) {
-    // both parent and child run this
-    char buf[100];
-    snprintf(&buf[0], 100, "Hello from pid %d, precious=%s\n", getpid(),
-             arg);
-    if (write(1, buf, strlen(buf)) < 0) {
-      perror("write");
-    }
-}
+#define ARRAY_SIZE (4096 * 4)
+#define BUS_SLAM_ROUNDS 4000
+#define THREAD_FUNC_REPS 1000
+#define NUM_THREADS 50
 
-#define ARR_SIZE 4096
-bthread_mutex mtx;
-int massive_array1[ARR_SIZE];
-int protect_me = 12;
-int massive_array2[ARR_SIZE];
+//#define DYNAMIC_ALLOC
+
+#ifdef DYNAMIC_ALLOC
+int *massive_array;
+#else 
+int massive_array[ARRAY_SIZE];
+#endif
 
 void seed() {
-    srand(time(NULL));
-    for (int i = 0; i < ARR_SIZE; i++) {
-        massive_array1[i] = rand() % ARR_SIZE;
-        massive_array2[i] = rand() % ARR_SIZE;
+
+  #ifdef DYNAMIC_ALLOC
+    massive_array = malloc(sizeof(int) * ARRAY_SIZE);
+  #endif
+
+    for (int i = 0; i < ARRAY_SIZE; i++) {
+        massive_array[i] = rand() % ARRAY_SIZE;
     }
 }
 
+static unsigned long total = 0;
 void slam_bus() {
     // Perform lots of writes and reads to memory
     // Try to avoid hitting caches.
-    int idx = rand() % ARR_SIZE;
-    for (int i = 0; i < 100; i++) {
-        int *arr = i % 2 == 0 ? massive_array1 : massive_array2;
-        // where should we jump to next?
-        int next_idx = arr[idx];
+    int idx = rand() % ARRAY_SIZE;
+    for (int i = 0; i < BUS_SLAM_ROUNDS; i++) {
+        int next_idx = massive_array[idx];
         // next thread that comes here will go somewhere totally different
-        arr[idx] = (ARR_SIZE - 1) - arr[idx];
+        massive_array[idx] = (ARRAY_SIZE - 1) - massive_array[idx];
         idx = next_idx;
+        total += idx;
     }
 }
 
+bthread_mutex mtx;
+int protect_me = 12;
+
 int thread_fun(void *arg) {
-    for (int i = 0; i < 400000; i++) {
+    (void)arg;
+    for (int i = 0; i < THREAD_FUNC_REPS; i++) {
         bthread_mutex_lock(&mtx);
         assert(protect_me == 12);
         protect_me++;
         assert(protect_me == 13);
         protect_me--;
         assert(protect_me == 12);
+
         slam_bus();
+
         bthread_mutex_unlock(&mtx);
     }
-    print((char *)arg);
     exit(0);
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        fprintf(stderr, "usage: %s [threadname1] ... [threadnameN]\n", argv[0]);
-        return 1;
-    }
+
+    (void)argc; (void)argv;
     seed();
-    const int nthreads = argc - 1;
 
-    printf("I am the parent, my pid is %d\n", getpid());
-
-    for (int i = 0; i < nthreads; i++) {
+    for (int i = 0; i < NUM_THREADS; i++) {
         int s = bthread_create(&thread_fun, argv[i + 1]);
         if (s == -1) {
             fprintf(stderr, "thread creation failed\n");
@@ -84,4 +78,5 @@ int main(int argc, char *argv[]) {
     }
     
     bthread_collect();
+    fprintf(stderr, "total = %ld\n", total);
 }

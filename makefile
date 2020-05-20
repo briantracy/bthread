@@ -1,6 +1,9 @@
 
 
-CFLAGS := -O0 -Wall -Wextra -std=gnu99 -fsanitize=address
+CFLAGS = -O0 -Wall -Wextra -std=gnu99 -fsanitize=address -pg
 
 client: client.c bthread.c
-	gcc $(CLFAGS) $^ -o $@
+	gcc -O0 -Wall -Wextra -std=gnu99  $^ -o $@ -g -pg
+
+bench: benchmark.c bthread.c
+	gcc -O0 -Wall -Wextra -std=gnu99  $^ -o $@
