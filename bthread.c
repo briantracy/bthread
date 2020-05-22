@@ -147,7 +147,7 @@ void bthread_mutex_lock(bthread_mutex *mtx)
             "movl $0, %%eax;"
             "movl $1, %%edx;"
             "lock cmpxchg %%edx, %0;"
-            "mov %%eax, %1;"
+            "movl %%eax, %1;"
             : "=m" (mtx->locked), "=r" (existing_value)
             :
             : "eax"
