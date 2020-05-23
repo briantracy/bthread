@@ -1,9 +1,13 @@
 
+.PHONY: all clean
 
-CFLAGS = -O0 -Wall -Wextra -std=gnu99 -fsanitize=address -pg
+all: client bench
 
 client: client.c bthread.c
-	gcc -O0 -Wall -Wextra -std=gnu99  $^ -o $@ -g -pg
+	gcc -O0 -Wall -Wextra -std=gnu99  $^ -o $@
 
 bench: benchmark.c bthread.c
 	gcc -O0 -Wall -Wextra -std=gnu99  $^ -o $@
+
+clean:
+	rm -f bench client

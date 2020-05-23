@@ -6,8 +6,8 @@
 #include "./bthread.h"
 
 
-#define ARRAY_SIZE (4096 * 4)
-#define BUS_SLAM_ROUNDS 4000
+#define ARRAY_SIZE (4096 * 512)
+#define BUS_SLAM_ROUNDS 1000
 #define THREAD_FUNC_REPS 1000
 #define NUM_THREADS 50
 
@@ -37,8 +37,10 @@ void slam_bus() {
     int idx = rand() % ARRAY_SIZE;
     for (int i = 0; i < BUS_SLAM_ROUNDS; i++) {
         int next_idx = massive_array[idx];
+        assert(next_idx >= 0 && next_idx < ARRAY_SIZE);
         // next thread that comes here will go somewhere totally different
         massive_array[idx] = (ARRAY_SIZE - 1) - massive_array[idx];
+        assert(massive_array[idx] >= 0 && massive_array[idx] < ARRAY_SIZE);
         idx = next_idx;
         total += idx;
     }
@@ -58,7 +60,6 @@ int thread_fun(void *arg) {
         assert(protect_me == 12);
 
         slam_bus();
-
         bthread_mutex_unlock(&mtx);
     }
     exit(0);
@@ -68,7 +69,6 @@ int main(int argc, char *argv[]) {
 
     (void)argc; (void)argv;
     seed();
-
     for (int i = 0; i < NUM_THREADS; i++) {
         int s = bthread_create(&thread_fun, argv[i + 1]);
         if (s == -1) {

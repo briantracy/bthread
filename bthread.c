@@ -1,4 +1,5 @@
 
+// so we can access clone
 #define _GNU_SOURCE
 
 #include <sys/mman.h>
@@ -152,8 +153,6 @@ void bthread_mutex_lock(bthread_mutex *mtx)
             :
             : "eax"
         );
-        
-        assert(existing_value == 0 || existing_value == 1);
 
         if (existing_value == 0) {
             // we got the lock
@@ -163,5 +162,25 @@ void bthread_mutex_lock(bthread_mutex *mtx)
 }
 void bthread_mutex_unlock(bthread_mutex *mtx)
 {
-    mtx->locked = 0;
+    /*
+        Apparently, unsynchronized reads/writes to shared memory
+        from multiple threads is undefined behavior from the C language
+        standard level, but not from the assembly language level because
+        we know what hardware we targeting.
+
+        So something like
+            mtx->locked = 0
+
+        in C would be UB (because we are reading mtx->locked in
+        bthread_mutex_lock), but accomplishing the same thing via inline
+        asm is ok.
+
+        I am not sure about this, would like to learn more.
+    */
+    asm volatile (
+        "movl $0, %0;"
+        : "=m" (mtx->locked)
+        :
+        :
+    );
 }
