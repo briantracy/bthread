@@ -1,13 +1,19 @@
 
 .PHONY: all clean
 
-all: client bench
+OBJS := client bench libbthread.so
+CFLAGS := -O0 -Wall -Wextra -std=gnu99
+
+all: $(OBJS)
 
 client: client.c bthread.c
-	gcc -O0 -Wall -Wextra -std=gnu99  $^ -o $@
+	gcc $(CFLAGS)  $^ -o $@
 
 bench: benchmark.c bthread.c
-	gcc -O0 -Wall -Wextra -std=gnu99  $^ -o $@
+	gcc $(CFLAGS)   $^ -o $@
+
+libbthread.so: bthread.c
+	gcc $(CFLAGS) -shared -o $@ -fPIC $<
 
 clean:
-	rm -f bench client
+	rm -f $(OBJS)
