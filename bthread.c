@@ -87,8 +87,8 @@ int bthread_create(int (*thread_func)(void *), void *thread_arg)
             CLONE_VM forces this thread to be run in the same address space
             as the parent. This is what makes it a "thread" like thing, and not
             a separate process.
-            CLONE_FS tells the new thread to use the same filesystem as the
-            parent.
+            CLONE_FS tells the new thread to use the same filesystem
+	    information as the parent (cwd, root dir, ...).
             CLONE_FILES tells the new thread to share the parent thread's
             file descriptors.
             SIGCHLD is necessary so that these threads can be wait()ed upon.
