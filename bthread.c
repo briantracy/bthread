@@ -152,7 +152,7 @@ void bthread_mutex_lock(bthread_mutex *mtx)
             "movl %%eax, %1;"
             : "=m" (mtx->locked), "=r" (existing_value)
             :
-            : "eax"
+            : "eax", "edx"
         );
 
         if (existing_value == 0) {
@@ -163,25 +163,7 @@ void bthread_mutex_lock(bthread_mutex *mtx)
 }
 void bthread_mutex_unlock(bthread_mutex *mtx)
 {
-    /*
-        Apparently, unsynchronized reads/writes to shared memory
-        from multiple threads is undefined behavior from the C language
-        standard level, but not from the assembly language level because
-        we know what hardware we targeting.
-
-        So something like
-            mtx->locked = 0
-
-        in C would be UB (because we are reading mtx->locked in
-        bthread_mutex_lock), but accomplishing the same thing via inline
-        asm is ok.
-
-        I am not sure about this, would like to learn more.
-    */
-    asm volatile (
-        "movl $0, %0;"
-        : "=m" (mtx->locked)
-        :
-        :
-    );
+    // Only 1 thread should ever be calling this function
+    // at a time, so a non-atomic write is OK.
+    mtx->locked = 0;
 }
